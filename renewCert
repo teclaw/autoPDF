@@ -1,0 +1,133 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun 30 22:55:24 2022
+
+@author: Ian LIU
+"""
+import os, re
+import argparse, datetime
+from fpdf import FPDF
+ 
+
+from PyPDF2 import PdfFileReader, PdfFileWriter
+
+def extract_information(pdf_path):
+    with open(pdf_path, 'rb') as f:
+        pdf = PdfFileReader(f)
+        information = pdf.getDocumentInfo()
+        number_of_pages = pdf.getNumPages()
+
+    txt = f"""
+    Information about {pdf_path}: 
+
+    Author: {information.author}
+    Creator: {information.creator}
+    Producer: {information.producer}
+    Subject: {information.subject}
+    Title: {information.title}
+    Number of pages: {number_of_pages}
+    """
+
+    print(txt)
+    return information
+
+def transRenewaltoEn(pdf_path, output):  
+    text = ''
+    no = ''
+    _class = ''
+    date = ''
+    with open(pdf_path, mode='rb') as f:
+        reader = PdfFileReader(f)
+        page = reader.getPage(0)
+        text = page.extractText() 
+        print(text)
+        #renew = re.match("续展注册证", page)
+        mno = re.findall("第.[0-9]{1,10}.号", text)
+        print(mno)
+        if mno is not None:
+            no = mno[0]
+            no = no.replace('第','').replace('号','').replace(' ',' ')
+            print('no', no)
+        mclass = re.findall("第.[0-9]{1,2}.类", text)
+        print(mclass)
+        if mclass is not None:
+            _class = mclass[0]
+            _class = _class.replace('第','').replace('类','').replace(' ',' ')
+            print('cl', _class)
+        mdate = re.findall("[0-9]{4,4}.年.[0-9]{1,2}.月.[0-9]{1,2}.日", text)
+        
+        print(mdate)
+        if mdate is not None:
+            date = mdate[0]
+            date = date.replace(' ','')
+            myear = re.findall("[0-9]{4,4}?年", date)
+            year = myear[0].replace("年","")
+            mmonth = re.findall("[0-9]{1,2}?月", date)
+            month = mmonth[0].replace("月","")
+            mday = re.findall("[0-9]{1,2}?日", date)
+            day = mday[0].replace("日","")
+            dt = datetime.datetime (int(year), int(month), int(day))
+            print('dt', date, year, month, day, dt)
+            
+        dateStr = dt.strftime('%Y-%m-%d')
+        dateStrFormal = dt.strftime('%d %B %Y')
+        pdf_new = FPDF(format='A4')
+        pdf_new.add_page()
+        pdf_new.set_font('Arial', '', 12)
+        pdf_new.cell(40, 10, txt="#")
+        pdf_new.set_font('Arial', 'B', 16)
+        pdf_new.cell(100, 40, txt="Certification of Trade Mark Registration Renewal", ln=1, align="C")
+        pdf_new.set_font('Arial', 'B', 12)
+        pdf_new.cell(100, 20, txt="\t\tCertify that Renewal of Trade Mark no. " + no + " in class " + _class + " is approved.", ln=1, align="L")
+        pdf_new.cell(100, 20, txt="\t\tRenewal of Registration is valid until " + dateStrFormal + "( " + dateStr + " )", ln=1, align="L")
+        pdf_new.set_font('Arial', 'I', 12)
+        pdf_new.cell(100, 100, txt="\t\tIssuing Authority China National Administration of Intellectual Property [SEAL]", ln=1, align="L")
+        pdf_new.set_font('Arial', '',10)
+        pdf_new.cell(100, 20, txt="\t\tNote: This Certification shall be used with Trade Mark Registration Certificate.", ln=1, align="L")
+        
+        pdf_new.output(output)
+        
+
+def merge_pdfs(paths, output):
+    pdf_writer = PdfFileWriter()
+
+    for path in paths:
+        pdf_reader = PdfFileReader(path)
+        for page in range(pdf_reader.getNumPages()):
+            # Add each page to the writer object
+            pdf_writer.addPage(pdf_reader.getPage(page))
+
+    # Write out the merged PDF
+    with open(output, 'wb') as out:
+        pdf_writer.write(out)
+
+def renewalCert(folder, file):
+    filename = file.replace(".pdf","")
+    path = folder + "\\"+ file
+    pathEn = folder + "\\"+ filename + "_EN.pdf"
+    transRenewaltoEn(path, pathEn)    
+    paths = [path, pathEn] # path of Chinese and English pdfs        
+    merge_pdfs(paths, output=folder + "\\"+ filename + "_CN_EN.pdf")
+
+if __name__ == '__main__':
+    path = r'C:\Users\annyychan\Downloads\M484028_Renew Cert_TM no.7005093(with soft copy only).pdf'
+    #path = r'C:\Users\annyychan\Downloads\M484028_Renew Cert_TM no.7005093(with soft copy only).pdf'
+    parser = argparse.ArgumentParser(allow_abbrev=True)
+    parser.add_argument('-m', '--mode', help='processing mode: renew', default='all')
+    #parser.add_argument('-f', '--folder', help='folder of files', default=os.path.dirname(path))
+    parser.add_argument('-p', '--path', help='path of a file', default=path)
+    args = parser.parse_args()
+    print(args)
+    path = args.path
+    file = os.path.basename(path)
+    folder = os.path.dirname(path)
+    print(folder, file)
+    #extract_information(path)
+    if args.mode == 'renew' or args.mode == 'all':
+        if file != '':
+            renewalCert(folder, file)
+        else:            
+            for fe in os.listdir(folder):
+                if fe.endswith('pdf') and 'Renew' in fe:
+                    print('processing renewal cert ' + fe)                    
+                    renewalCert(folder, fe)
