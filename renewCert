@@ -87,6 +87,17 @@ def transRenewaltoEn(pdf_path, output):
         
         pdf_new.output(output)
         
+def genCoverPage(evidenceNum, output):
+        pdf_new = FPDF(format='A4')
+        pdf_new.add_page()
+        pdf_new.add_font('fireflysung', '', 'fireflysung.ttf', uni=True)
+        pdf_new.set_font('fireflysung', '', 36)
+        pdf_new.cell(200, 120, txt=evidenceNum, align='C')
+        pdf_new.output(output)    
+
+#def addBookmark(title, path, pagenum=0):
+#    pdf_reader = PdfFileReader(path)
+    
 
 def merge_pdfs(paths, output):
     pdf_writer = PdfFileWriter()
@@ -113,8 +124,8 @@ if __name__ == '__main__':
     path = r'C:\Users\annyychan\Downloads\M484028_Renew Cert_TM no.7005093(with soft copy only).pdf'
     #path = r'C:\Users\annyychan\Downloads\M484028_Renew Cert_TM no.7005093(with soft copy only).pdf'
     parser = argparse.ArgumentParser(allow_abbrev=True)
-    parser.add_argument('-m', '--mode', help='processing mode: renew', default='all')
-    #parser.add_argument('-f', '--folder', help='folder of files', default=os.path.dirname(path))
+    parser.add_argument('-m', '--mode', help='processing mode: renew', default='none')
+    parser.add_argument('-n', '--num', help='number evidence by: pdfname', default='seq')
     parser.add_argument('-p', '--path', help='path of a file', default=path)
     args = parser.parse_args()
     print(args)
@@ -123,11 +134,39 @@ if __name__ == '__main__':
     folder = os.path.dirname(path)
     print(folder, file)
     #extract_information(path)
-    if args.mode == 'renew' or args.mode == 'all':
+    if args.mode == 'renew': # or args.mode == 'all':
         if file != '':
             renewalCert(folder, file)
-        else:            
-            for fe in os.listdir(folder):
-                if fe.endswith('pdf') and 'Renew' in fe:
-                    print('processing renewal cert ' + fe)                    
-                    renewalCert(folder, fe)
+        else:
+            try: 
+                for fe in os.listdir(folder):
+                    if fe.endswith('pdf') and 'Renew' in fe and '_EN.pdf' not in fe:
+                        print('processing renewal cert ' + fe)                    
+                        renewalCert(folder, fe)
+            except:
+                print('Folder path must end with \\')
+    elif args.mode == 'evidence':
+        num = 1
+        for fe in os.listdir(folder):
+            if fe.endswith('pdf'):
+                if args.num == 'pdfname':
+                    filename = fe.replace(".pdf","")
+                    path = folder + "\\"+ fe # orginal pdf
+                    pathCvr = folder + "\\" + "_cover.pdf" # temp cover
+                    print('processing evidence ' + fe)                 
+                    mevid = re.findall("附件[0-9]{1,2}", filename)
+                    print(mevid)
+                    if mevid is not None and "附件" in filename:
+                        num = mevid[0]
+                        num = num.replace('附件','').replace(' ',' ')
+                        genCoverPage('证据 ' + str(num), pathCvr) #证据
+                        paths = [pathCvr, path] # path of Cover and pdf        
+                        merge_pdfs(paths, output=folder + "\\"+ filename + "_ok.pdf")
+                else :
+                    filename = fe.replace(".pdf","")
+                    path = folder + "\\"+ fe
+                    pathCvr = folder + "\\" + "_cover.pdf"
+                    print('processing evidence ' + fe)                    
+                    genCoverPage('证据 ' + str(num), pathCvr) #证据
+                    paths = [pathCvr, path] # path of Cover and pdf        
+                    merge_pdfs(paths, output=folder + "\\"+ filename + "_ok.pdf")
